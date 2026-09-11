@@ -55,7 +55,7 @@ def load_data_from_gsheets():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl=0)
         return conn, df
-    except Exception as e:
+    except Exception:
         return None, None
 
 def save_data_to_gsheets(conn, existing_df, new_entry):
@@ -67,7 +67,7 @@ def save_data_to_gsheets(conn, existing_df, new_entry):
             updated_df = new_df
         conn.update(data=updated_df)
         return updated_df, True
-    except Exception as e:
+    except Exception:
         return existing_df, False
 
 def delete_row_from_gsheets(conn, existing_df, index_to_delete):
@@ -75,66 +75,85 @@ def delete_row_from_gsheets(conn, existing_df, index_to_delete):
         updated_df = existing_df.drop(index=index_to_delete).reset_index(drop=True)
         conn.update(data=updated_df)
         return updated_df, True
-    except Exception as e:
+    except Exception:
         return existing_df, False
 
+def display_image_safely(img_path, caption=""):
+    try:
+        st.image(img_path, caption=caption, use_container_width=True)
+    except Exception:
+        try:
+            st.image(img_path, caption=caption)
+        except Exception as e2:
+            st.warning(f"Impossible d'afficher l'image {os.path.basename(img_path)}: {str(e2)}")
+
+def get_bike_images(bike_key):
+    search_dirs = ['.', 'images', './images']
+    
+    targets = {
+        "pivot_ampd_2026": [
+            "Ampd_Torque.jpg", "ampd_torque.jpg", "AMPd_Torque.jpg", "Ampd_Torque.png",
+            "Suspension Calculator Pivot AMPD.jpg", "suspension_calculator_pivot_ampd.jpg"
+        ],
+        "transition_patrol_2024": [
+            "2023.02.21_PatrolASM_Explode.jpg", "patrol_explode.jpg", "2023.02.21_PatrolASM_Explode.png",
+            "Patrol_Explode.jpg"
+        ],
+        "santacruz_vala_2026": [
+            "01_Carbon_Linkage_Hardware.jpg",
+            "02_Carbon_Rear_Triangle_Hardware.jpg",
+            "03_Carbon_Controller_Motor_Guards.png",
+            "04_Carbon_Battery.png"
+        ],
+        "norco_sight_2024": [
+            "Norco_Torque.jpg", "norco_torque.jpg", "Norco_Sight_Exploded.jpg", "norco_sight_exploded.jpg"
+        ]
+    }
+    
+    keywords = {
+        "pivot_ampd_2026": ["ampd", "amp'd"],
+        "transition_patrol_2024": ["patrol", "patrolasm"],
+        "santacruz_vala_2026": ["01_carbon", "02_carbon", "03_carbon", "04_carbon", "vala", "linkage_hardware", "rear_triangle"],
+        "norco_sight_2024": ["norco", "sight"]
+    }
+
+    found_files = []
+    existing_files_map = {}
+    
+    for d in search_dirs:
+        if os.path.exists(d) and os.path.isdir(d):
+            for root, _, files in os.walk(d):
+                for f in files:
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                        full_p = os.path.join(root, f)
+                        existing_files_map[f.lower()] = full_p
+                        
+    expected = targets.get(bike_key, [])
+    for t in expected:
+        t_low = t.lower()
+        if t_low in existing_files_map:
+            p = existing_files_map[t_low]
+            if p not in found_files:
+                found_files.append(p)
+
+    if not found_files or bike_key == "santacruz_vala_2026":
+        kw_list = keywords.get(bike_key, [])
+        for f_low, full_p in sorted(existing_files_map.items()):
+            if any(kw in f_low for kw in kw_list):
+                if full_p not in found_files:
+                    found_files.append(full_p)
+                    
+    return found_files
+
 # ---------------------------------------------------------
-# DONNÉES EXHAUSTIVES ET GROUNDÉES DES VÉLOS
+# DONNÉES GROUNDÉES DE LA BASE DE DONNÉES DES VÉLOS
 # ---------------------------------------------------------
 
 BIKES_DATA = {
-    "transition_patrol_2024": {
-        "name": "Transition Patrol Carbone (2024/2025)",
-        "type": "Enduro Musculaire (Mullet)",
-        "weight_ref": "85 kg",
-        "images": ["2023.02.21_PatrolASM_Explode.jpg", "images/2023.02.21_PatrolASM_Explode.jpg", "Patrol_Torque.jpg"],
-        "suspensions_recommended": {
-            "fork": {
-                "model": "Öhlins RXF 38 m.2 Kit Coil (160mm)",
-                "pressure": "N/A (Ressort Hélicoïdal)",
-                "spring_rate": "9.7 N/mm (Blanc / ~82kg) à 10.6 N/mm (Noir / ~91kg)",
-                "sag": "15% - 20% (24 - 32 mm)",
-                "preload": "0 - 2 tours max depuis contact",
-                "lsr": "Selon sensation (compter clics depuis ouvert)",
-                "lsc": "Ajustement progressif au sommet",
-                "hsc": "4 positions (1-3 descente, 0 blocage)"
-            },
-            "shock": {
-                "model": "Öhlins TTX 22 Coil (205x65mm)",
-                "pressure": "N/A (Ressort Hélicoïdal)",
-                "spring_rate": "457 lbs",
-                "sag": "25% - 35% (16.25 - 22.75 mm)",
-                "preload": "2 tours complets maximum après contact",
-                "lsr": "Compter clics depuis fermeture complète (Pos 0)",
-                "lsc": "Molette bleue (Ajuster selon motricité)",
-                "hsc": "3 positions (I: Souple, II: Polyvalent, III: Pédalage)"
-            }
-        },
-        "torques": [
-            {"zone": "Cadre & Cinématique", "component": "Réf #5 / #8 - Main Pivot Axle 17x80mm", "torque": "19 Nm", "notes": "Graisse sur corps / Loctite 243 sur filet"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #9 - Main Pivot Taper Nut", "torque": "Serrage guidé", "notes": "Graisser la surface extérieure"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #11 - Main Pivot Screw (M6-25L)", "torque": "10 Nm", "notes": "Loctite 243 (Bleu)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #15 - Chainstay Pivot Axle 15x26mm V2", "torque": "Axe guidé", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #16 - Chainstay Pivot Screw 12x15mm V2 (Horst Link)", "torque": "12 Nm", "notes": "Loctite 243 (Bleu)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #17 - Seatstay Pivot Axle 15x20mm", "torque": "Axe guidé", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #18 - Seatstay Pivot Screw 12x12mm", "torque": "12 Nm", "notes": "Loctite 243 (Bleu)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #21 - Rocker Pivot Screw 8x40mm", "torque": "Serrage guidé", "notes": "Loctite 243 (Bleu)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #22 - Rocker Pivot Axle 15x38mm", "torque": "15 Nm", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #25 - Trunnion Shock Bolt V2 10x24mm (Ancrage Haut)", "torque": "12 Nm", "notes": "Loctite 243 (Bleu)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #29 - Shock Bolt 8x55mm (Ancrage Bas)", "torque": "10 Nm", "notes": "Graisse axe / Loctite 243 filet"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #33 - 12x148 Rear Thru-Axle (Axe de roue arrière UDH)", "torque": "10 - 12 Nm", "notes": "Graisser le filetage et l'axe"},
-            {"zone": "Transmission", "component": "Réf #35 - Universal Derailleur Hanger (SRAM UDH Bolt)", "torque": "25 Nm", "notes": "Attention: Filetage inversé / Pas à gauche"},
-            {"zone": "Freins", "component": "Disques SRAM HS2 (Moyeux Hope Pro 5)", "torque": "6.2 Nm", "notes": "Torx T25 / Serrage croisé en étoile"},
-            {"zone": "Freins", "component": "Étriers SRAM Maven (Post Mount)", "torque": "9.5 Nm", "notes": "Centrer l'étrier levier enfoncé"},
-            {"zone": "Freins", "component": "Écrou de compression durite Stealth-a-majig", "torque": "8 Nm", "notes": "Clé dynamométrique à fourche 8mm"}
-        ],
-        "schematic_info": "Vue éclatée complète issue de '2023.02.21_PatrolASM_Explode.jpg' et 'Transition Patrol Couples de serrage - Feuille 2'."
-    },
     "pivot_ampd_2026": {
         "name": "Pivot Shuttle AMP'd (2026)",
         "type": "E-VTTAE All-Mountain / Enduro",
         "weight_ref": "85 kg",
-        "images": ["Ampd_Torque.jpg", "images/Ampd_Torque.jpg", "Suspension Calculator Pivot AMPD.jpg", "images/Suspension Calculator Pivot AMPD.jpg"],
         "suspensions_recommended": {
             "fork": {
                 "model": "RockShox ZEB Ultimate 3.2 (160mm)",
@@ -154,30 +173,69 @@ BIKES_DATA = {
             }
         },
         "torques": [
-            {"zone": "Cadre & Cinématique", "component": "Réf #5 - Universal Rear Derailleur Hanger Bolt (UDH)", "torque": "25 Nm", "notes": "Pas à droite / UDH Bolt"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #12 - M8 Front Shock Bolt (Spacing 30.1mm)", "torque": "13 Nm", "notes": "Graisse axe / Loctite 243 filet"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #13 - M14x20 Link Bolt (Main Link)", "torque": "35 Nm", "notes": "Loctite 243"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #14 - M10 Trunnion Mount Bolt", "torque": "13 Nm", "notes": "Loctite 243"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #15 - M14x20 Flip Chip Bolt", "torque": "35 Nm", "notes": "Loctite 243"},
-            {"zone": "Cadre & Cinématique", "component": "157mm UDH Rear Axle (Axe de roue arrière)", "torque": "15 Nm", "notes": "Graisser le filetage"},
-            {"zone": "Moteur & Batterie", "component": "Avinox Label I - 800Wh Battery Mounting Hardware", "torque": "5 Nm", "notes": "Loctite 243"},
-            {"zone": "Moteur & Batterie", "component": "Avinox Label J - Avinox M2S Drive Unit Mounting Bolts", "torque": "25 Nm", "notes": "Loctite 243 / Rondelles dentelées"},
-            {"zone": "Moteur & Batterie", "component": "Avinox Label K - Chainring Spider Lockring", "torque": "35 Nm", "notes": "Graisser"},
-            {"zone": "Composants", "component": "Réf #23 - M6x12 Skid Plate Mounting Screws (Sabot)", "torque": "6 Nm", "notes": "Loctite 243"},
-            {"zone": "Composants", "component": "Réf #25 - M5x12 Button Head Screw", "torque": "5 Nm", "notes": "Loctite 243"},
-            {"zone": "Composants", "component": "Réf #30 - M2.5x10 Flat Head Bolt Black", "torque": "1 Nm", "notes": "Serrage délicat"},
-            {"zone": "Composants", "component": "Réf #35 - M5x12 Flat Head Chain Guide Mounting Screw", "torque": "5 Nm", "notes": "Loctite 243"},
-            {"zone": "Composants", "component": "Réf #37 - Internal Routing Plate Bolt M10x8.5", "torque": "2 Nm", "notes": "Graisser"},
-            {"zone": "Composants", "component": "Collier de selle (Seatpost Clamp Bolt)", "torque": "5 Nm", "notes": "Clé Allen 4mm"},
-            {"zone": "Composants", "component": "Vis de carte SIM / Écran Control Display", "torque": "< 0.1 Nm / < 0.6 Nm", "notes": "Vis M2 / M2.5"}
+            {"zone": "Cadre & Cinématique", "component": "Link Bolt M14x20 (Main Link) [Réf #13]", "torque": "35 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Flip Chip Bolt M14x20 [Réf #15]", "torque": "35 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Trunnion Mount Bolt M10x16.5 [Réf #14]", "torque": "13 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Front Shock Bolt M8x45.7 [Réf #12]", "torque": "13 Nm", "notes": "Graisse axe / Loctite filet"},
+            {"zone": "Cadre & Cinématique", "component": "Axe de roue arrière 157mm UDH", "torque": "15 Nm", "notes": "Graisser le filetage"},
+            {"zone": "Transmission & Moteur", "component": "Vis de patte SRAM UDH [Réf #5]", "torque": "25 Nm", "notes": "Pas à droite / UDH Bolt"},
+            {"zone": "Transmission & Moteur", "component": "Vis de montage Moteur Avinox M2S [Réf J]", "torque": "25 Nm", "notes": "Loctite 243"},
+            {"zone": "Transmission & Moteur", "component": "Ecrou Spider Plateau Avinox [Réf K]", "torque": "35 Nm", "notes": "Graisser"},
+            {"zone": "Transmission & Moteur", "component": "Fixation Batterie 800Wh [Réf I]", "torque": "5 Nm", "notes": "Loctite 243"},
+            {"zone": "Composants", "component": "Vis Sabot Moteur M6x12 [Réf #23]", "torque": "6 Nm", "notes": "Loctite 243"},
+            {"zone": "Composants", "component": "Vis Anti-dérailleur M5x12 [Réf #35]", "torque": "5 Nm", "notes": "Loctite 243"},
+            {"zone": "Composants", "component": "Vis de Port de Câble M2.5x10 [Réf #30]", "torque": "1 Nm", "notes": "Serrage léger"},
+            {"zone": "Composants", "component": "Vis Plaque de Câble Interne M10x8.5 [Réf #37]", "torque": "2 Nm", "notes": "Graisser"},
+            {"zone": "Composants", "component": "Vis Collier de Selle 34.9mm", "torque": "5 Nm", "notes": "Clé Allen 4mm"}
         ],
-        "schematic_info": "Vue éclatée issue de 'Shuttle-AMPD-SPS-Avinox-Parts-1.pdf' et manuel d'atelier '8.26-Shuttle-AMPD-Product-Manual'."
+        "schematic_info": "Vues éclatées et fiches disponibles dans '8.26-Shuttle-AMPD-Product-Manual-All-Languages.pdf' et 'Ampd_Torque.jpg'."
+    },
+    "transition_patrol_2024": {
+        "name": "Transition Patrol Carbone (2024/2025)",
+        "type": "Enduro Musculaire (Mullet)",
+        "weight_ref": "85 kg",
+        "suspensions_recommended": {
+            "fork": {
+                "model": "Öhlins RXF 38 m.2 Kit Coil (160mm)",
+                "pressure": "N/A (Ressort Helicoidal)",
+                "spring_rate": "9.7 N/mm (Blanc / 82kg) à 10.6 N/mm (Noir / 91kg)",
+                "sag": "15% - 20% (24 - 32 mm)",
+                "preload": "0 - 2 tours max depuis contact",
+                "lsr": "Selon sensation (0 = fermé, compter clics depuis ouvert)",
+                "lsc": "Ajustement progressif au sommet",
+                "hsc": "4 positions (1-3 descente, 0 blocage)"
+            },
+            "shock": {
+                "model": "Öhlins TTX 22 Coil (205x65mm)",
+                "pressure": "N/A (Ressort Helicoidal)",
+                "spring_rate": "457 lbs",
+                "sag": "25% - 35% (16.25 - 22.75 mm)",
+                "preload": "2 tours complets maximum après contact",
+                "lsr": "Compter clics depuis fermeture complète (Pos 0)",
+                "lsc": "Molette bleue (Ajuster selon motricité)",
+                "hsc": "3 positions (I: Souple, II: Polyvalent, III: Pédalage)"
+            }
+        },
+        "torques": [
+            {"zone": "Cadre & Cinématique", "component": "Axe du pivot principal 17x80mm [Réf #8]", "torque": "19 Nm", "notes": "Graisser l'axe / Frein filet bleu sur filet"},
+            {"zone": "Cadre & Cinématique", "component": "Vis de pivot principal M6x25mm [Réf #11]", "torque": "10 Nm", "notes": "Frein filet bleu"},
+            {"zone": "Cadre & Cinématique", "component": "Vis de pivot de bases 12x15mm (Horst Link) [Réf #16]", "torque": "12 Nm", "notes": "Frein filet bleu / Vis larges carbone"},
+            {"zone": "Cadre & Cinématique", "component": "Vis de pivot de haubans 12x12mm [Réf #18]", "torque": "12 Nm", "notes": "Frein filet bleu"},
+            {"zone": "Cadre & Cinématique", "component": "Axe de biellette 15x38mm (Rocker Axle) [Réf #22]", "torque": "15 Nm", "notes": "Graisser l'axe"},
+            {"zone": "Cadre & Cinématique", "component": "Vis de fixation amortisseur Trunnion M10x24 [Réf #25]", "torque": "12 Nm", "notes": "Frein filet bleu"},
+            {"zone": "Cadre & Cinématique", "component": "Vis d'amortisseur M8x55mm [Réf #29]", "torque": "10 Nm", "notes": "Graisser l'axe / Frein filet bleu sur filet"},
+            {"zone": "Cadre & Cinématique", "component": "Axe de roue arrière 12x148mm (UDH) [Réf #33]", "torque": "10 - 12 Nm", "notes": "Graisser l'axe et les filets"},
+            {"zone": "Transmission & Moteur", "component": "Vis de la patte SRAM UDH [Réf #35]", "torque": "25 Nm", "notes": "Attention: Filetage inversé (anti-horaire)"},
+            {"zone": "Freins", "component": "Disques SRAM HS2 (Moyeux Hope Pro 5)", "torque": "6.2 Nm", "notes": "Torx T25 / Serrage en étoile"},
+            {"zone": "Freins", "component": "Étriers SRAM Maven (Fixation Post Mount)", "torque": "9.5 Nm", "notes": "Centrer l'étrier levier serré"},
+            {"zone": "Freins", "component": "Écrou de compression Stealth-a-majig (Levier Maven)", "torque": "8 Nm", "notes": "Clé à fourche 8mm"}
+        ],
+        "schematic_info": "Vue éclatée disponible dans le schéma officiel '2023.02.21_PatrolASM_Explode.jpg' et 'Transition Patrol Couples de serrage - Feuille 2'."
     },
     "santacruz_vala_2026": {
         "name": "Santa Cruz Vala GX AXS (2026)",
         "type": "E-VTTAE All-Mountain (Bosch Gen 5)",
         "weight_ref": "55-85 kg",
-        "images": ["01_Carbon_Linkage_Hardware.jpg", "02_Carbon_Rear_Triangle_Hardware.jpg", "03_Carbon_Controller_Motor_Guards.png", "04_Carbon_Battery.png", "images/01_Carbon_Linkage_Hardware.jpg"],
         "suspensions_recommended": {
             "fork": {
                 "model": "FOX 38 Float Performance Elite, Grip X2 (160mm)",
@@ -197,36 +255,27 @@ BIKES_DATA = {
             }
         },
         "torques": [
-            {"zone": "Linkage (Biellette)", "component": "Label C - Pivot Axle M15x91", "torque": "20 Nm", "notes": "Loctite 242 sur filet / Graisse sur axe"},
-            {"zone": "Linkage (Biellette)", "component": "Label N - Bosch DU screw wide V2 (EB11.200.15J)", "torque": "30 Nm", "notes": "Vis Moteur Bosch"},
-            {"zone": "Linkage (Biellette)", "component": "Label O - Bosch DU screw V2 (EB11.200.12G)", "torque": "30 Nm", "notes": "Vis Moteur Bosch"},
-            {"zone": "Linkage (Biellette)", "component": "Label T - M10x10 Trunnion Screw", "torque": "16 Nm", "notes": "Loctite 242 sur filet / Graisse sur axe"},
-            {"zone": "Linkage (Biellette)", "component": "Label W - M10x20 Bolt", "torque": "16 Nm", "notes": "Loctite 242"},
-            {"zone": "Linkage (Biellette)", "component": "Label H - M8x45 Lowhead SHCS (Ancrage Bas / Flip-Chip)", "torque": "15.6 Nm", "notes": "Loctite 242"},
-            {"zone": "Linkage (Biellette)", "component": "Label F - M6x20 SHCS (Pivot Horst Link / Bases)", "torque": "9 Nm", "notes": "Loctite 242"},
-            {"zone": "Linkage (Biellette)", "component": "Label R - M4x12 BHCS", "torque": "0.65 Nm", "notes": "Graisser le filetage"},
-            {"zone": "Linkage (Biellette)", "component": "Label A - M5x5 Set Screw", "torque": "0.5 Nm", "notes": "Loctite 242 à effleurement"},
-            {"zone": "Linkage (Biellette)", "component": "Label BB - M3x12 BHCS", "torque": "0.1 Nm", "notes": "Loctite 242"},
-            {"zone": "Triangle Arrière", "component": "Label C - SCB UDH Screw (Vis de patte SRAM UDH)", "torque": "20 Nm", "notes": "Attention: Pas à gauche (Reverse Thread)"},
-            {"zone": "Triangle Arrière", "component": "Label D - M10x26 Bolt", "torque": "16 Nm", "notes": "Loctite 242 sur filet / Graisse sur axe"},
-            {"zone": "Triangle Arrière", "component": "Label P - M5x12 HHS", "torque": "2 Nm", "notes": "Loctite 242"},
-            {"zone": "Triangle Arrière", "component": "Label K - M4x10 FHCS", "torque": "0.65 Nm", "notes": "Loctite 242"},
-            {"zone": "Triangle Arrière", "component": "Label O - M3x6 Screw", "torque": "0.6 Nm", "notes": "Loctite 242"},
-            {"zone": "Triangle Arrière", "component": "Label J - M3x12 BHCS", "torque": "0.1 Nm", "notes": "Loctite 242"},
-            {"zone": "Moteur & Carter", "component": "Label B - M5x10 BHCS (Fixations carter)", "torque": "9 Nm", "notes": "Loctite 242"},
-            {"zone": "Moteur & Carter", "component": "Label G - M6x10 BHCS", "torque": "3 Nm", "notes": "Loctite"},
-            {"zone": "Moteur & Carter", "component": "Label E - M4x16 BHCS", "torque": "0.65 Nm", "notes": "Graisser le filetage"},
-            {"zone": "Batterie", "component": "Label B - M4x10 SHCS (Fixation Batterie PT600)", "torque": "1.2 Nm", "notes": "Loctite 242"},
-            {"zone": "Composants", "component": "Collier de selle (36.4mm Seat Collar)", "torque": "5 Nm", "notes": "Serrage cintre/potence 5 Nm"},
-            {"zone": "Freins", "component": "Étriers de Frein Post Mount / Disques 6 trous", "torque": "9 - 10 Nm / 6 Nm", "notes": "Torx T25 disques"}
+            {"zone": "Cadre & Cinématique", "component": "Axe Pivot Principal M15x91 [Linkage - Label C]", "torque": "20 Nm", "notes": "Loctite 242 sur filet / Graisser l'axe"},
+            {"zone": "Cadre & Cinématique", "component": "Trunnion Mount M10x10 [Linkage - Label T]", "torque": "16 Nm", "notes": "Loctite 242"},
+            {"zone": "Cadre & Cinématique", "component": "Vis Biellette M10x20 [Linkage - Label W]", "torque": "16 Nm", "notes": "Loctite 242"},
+            {"zone": "Cadre & Cinématique", "component": "Ancrage Inférieur Amortisseur M8x45 [Linkage - Label H]", "torque": "15.6 Nm", "notes": "Loctite 242"},
+            {"zone": "Cadre & Cinématique", "component": "Pivot Biellette / Haubans M6x20 [Linkage - Label F]", "torque": "9 Nm", "notes": "Loctite 242"},
+            {"zone": "Cadre & Cinématique", "component": "Axe de roue arrière 12x173.7 [Rear Triangle - Label A]", "torque": "10 - 12 Nm", "notes": "Graisser l'axe et le filetage"},
+            {"zone": "Cadre & Cinématique", "component": "Vis Pivot Triangle Arrière M10x26 [Rear Triangle - Label D]", "torque": "16 Nm", "notes": "Loctite 242 sur filet / Graisser l'axe"},
+            {"zone": "Transmission & Moteur", "component": "Vis Moteur Bosch DU Large [Linkage - Label N]", "torque": "30 Nm", "notes": "Réf Bosch EB11.200.15J"},
+            {"zone": "Transmission & Moteur", "component": "Vis Moteur Bosch DU Standard [Linkage - Label O]", "torque": "30 Nm", "notes": "Réf Bosch EB11.200.12G"},
+            {"zone": "Transmission & Moteur", "component": "Patte SRAM UDH [Rear Triangle - Label C]", "torque": "20 Nm", "notes": "Pas à gauche (Reverse thread)"},
+            {"zone": "Transmission & Moteur", "component": "Vis de Protection Moteur M5x10 [Motor Guard - Label B]", "torque": "9 Nm", "notes": "Loctite 242"},
+            {"zone": "Transmission & Moteur", "component": "Vis Fixation Batterie M4x10 [Battery - Label B]", "torque": "1.2 Nm", "notes": "Loctite 242"},
+            {"zone": "Composants", "component": "Vis de Disque 6 Trous", "torque": "6 Nm", "notes": "Torx T25"},
+            {"zone": "Composants", "component": "Étriers de Frein Post Mount", "torque": "9 - 10 Nm", "notes": "Alignement étrier"}
         ],
-        "schematic_info": "Vues éclatées et fiches matériels officielles 'Santa Cruz Vala 2026 - Couples de Serrage et Vues Eclatees'."
+        "schematic_info": "Vues éclatées et fiches matériels disponibles dans '01_Carbon_Linkage_Hardware.jpg', '02_Carbon_Rear_Triangle_Hardware.jpg', '03_Carbon_Controller_Motor_Guards.png' et '04_Carbon_Battery.png'."
     },
     "norco_sight_2024": {
         "name": "Norco Sight Carbon Gen 5 (2024)",
         "type": "All-Mountain / Enduro",
         "weight_ref": "Standard",
-        "images": ["Norco_Torque.jpg", "images/Norco_Torque.jpg", "norco_sight_exploded.jpg"],
         "suspensions_recommended": {
             "fork": {
                 "model": "Öhlins RXF 38 m.2 Air (170mm)",
@@ -246,21 +295,17 @@ BIKES_DATA = {
             }
         },
         "torques": [
-            {"zone": "Cadre & Cinématique", "component": "Réf #15 - Main Pivot Shaft OD15 L92 (Axe Pivot Principal)", "torque": "21 Nm", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #25 - Main Pivot Shaft Retainer (LSM/Shock Bolt 56mm M8)", "torque": "3 Nm", "notes": "Retient l'axe principal"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #17 - Chain Stay to Seat Stays Shaft Dia12 L32 M12x1.25", "torque": "14 Nm", "notes": "Graisser / Placer réf #29 entre roulements"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #18 - Linkarm to Seat Stays Shaft Dia12 L27.5 M12x1.25", "torque": "14 Nm", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #19 - Linkarm to Front Triangle Bolt OD15 L32 M12x1.25", "torque": "16 Nm", "notes": "Graisser le corps de l'axe"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #20 - Trunnion Shock Mounts Bolt M10x1 L17", "torque": "14 Nm", "notes": "Graisser le corps de la vis"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #21 - Main Pivot Nut Bolt M10x1.25 L14", "torque": "19 Nm", "notes": "Écrou de pivot principal"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #22 - LSM Bolt 60mm M6", "torque": "12 Nm", "notes": "Loctite 243"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #23 - Shock Bolt 56mm M8", "torque": "12 Nm", "notes": "Ancrage d'amortisseur"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #26 - Idler to Chain Stay (Galet de chaîne)", "torque": "16 Nm", "notes": "Graisser le corps"},
-            {"zone": "Transmission", "component": "Réf #38/#39 - UDH Derailleur Hanger Bolt V2 M12x1.75", "torque": "20 Nm", "notes": "Attention: Pas à gauche (Left Hand Thread)"},
-            {"zone": "Cadre & Cinématique", "component": "Réf #40 - Norco Rear Axle L174 TL13 M12x1 (Axe arrière)", "torque": "10 Nm", "notes": "Graisser le filetage"},
-            {"zone": "Composants", "component": "Réf #41 - Seat Clamp Norco Post 34.9", "torque": "5 Nm", "notes": "Collier de selle"}
+            {"zone": "Cadre & Cinématique", "component": "Main Pivot Shaft (Axe Pivot Principal) [Réf #15]", "torque": "21 Nm", "notes": "Graisser l'axe"},
+            {"zone": "Cadre & Cinématique", "component": "Main Pivot Shaft Retainer [Réf #21]", "torque": "3 Nm", "notes": "Verrouillage axe principal"},
+            {"zone": "Cadre & Cinématique", "component": "Linkarm to Front Triangle (Trunnion) [Réf #17]", "torque": "16 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Linkarm to Seat Stays [Réf #18]", "torque": "14 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Chain Stay to Seat Stays (Horst Link) [Réf #17]", "torque": "14 Nm", "notes": "Loctite 243"},
+            {"zone": "Cadre & Cinématique", "component": "Fixation Amortisseur [Réf #20, #23]", "torque": "12 - 14 Nm", "notes": "Loctite 243"},
+            {"zone": "Transmission & Moteur", "component": "Galet de Galet / Idler to Chain Stay [Réf #19]", "torque": "16 Nm", "notes": "Graisser l'axe"},
+            {"zone": "Transmission & Moteur", "component": "UDH Derailleur Hanger Bolt [Réf #39]", "torque": "20 Nm", "notes": "Pas à gauche (Left hand thread)"},
+            {"zone": "Cadre & Cinématique", "component": "Axe de roue arrière 12x148mm [Réf #40]", "torque": "10 Nm", "notes": "Graisser le filetage"}
         ],
-        "schematic_info": "Nomenclature et schémas d'assemblage complets 'norco-sight-carbon-gen5-assembler-document-revb'."
+        "schematic_info": "Schémas et vues éclatées disponibles dans 'norco-sight-carbon-gen5-assembler-document'."
     }
 }
 
@@ -290,7 +335,8 @@ selected_bike_key = st.sidebar.selectbox(
 
 bike_info = BIKES_DATA[selected_bike_key]
 
-st.sidebar.info(f"**Modèle** : {bike_info['name']}\n\n**Type** : {bike_info['type']}")
+st.sidebar.info(f"**Modèle** : {bike_info['name']}")
+st.sidebar.caption(f"**Type** : {bike_info['type']}")
 
 user_weight = st.sidebar.number_input("Poids du pilote équipé (kg) :", min_value=40, max_value=130, value=85)
 
@@ -458,24 +504,41 @@ else:
     
     st.info(f"ℹ️ **Documentation Schémas** : {bike_info['schematic_info']}")
     
-    # AFFICHAGE DU SCHÉMA / IMAGE SI PRÉSENT
-    st.markdown("### 🖼️ Schémas & Vues Éclatées du Cadre")
+    # RECHERCHE ET AFFICHAGE DES SCHÉMAS ET VUES ÉCLATÉES
+    found_images = get_bike_images(selected_bike_key)
     
-    found_image = False
-    for img_name in bike_info.get("images", []):
-        if os.path.exists(img_name):
-            try:
-                st.image(img_name, caption=f"Schéma technique : {os.path.basename(img_name)}", use_container_width=True)
-                found_image = True
-            except Exception as e:
-                pass
-                
-    if not found_image:
-        st.warning("💡 *Conseil visuel* : Placez vos images JPG/PNG (ex: Ampd_Torque.jpg, Patrol_Torque.jpg, Norco_Torque.jpg) dans votre dépôt GitHub pour qu'elles s'affichent automatiquement ci-dessus.")
+    if found_images:
+        st.markdown("### 🖼️ Schémas & Vues Éclatées du Cadre")
+        if len(found_images) == 1:
+            img_path = found_images[0]
+            img_name = os.path.basename(img_path)
+            display_image_safely(img_path, caption=f"Schéma technique : {img_name}")
+        else:
+            st.write(f"**{len(found_images)} schémas disponibles pour ce vélo :**")
+            tab_titles = [f"📷 {os.path.basename(p)}" for p in found_images]
+            tabs = st.tabs(tab_titles)
+            for tab, img_path in zip(tabs, found_images):
+                with tab:
+                    img_name = os.path.basename(img_path)
+                    display_image_safely(img_path, caption=f"Schéma technique : {img_name}")
+            
+            with st.expander("👁️ Afficher toutes les images l'une en dessous de l'autre"):
+                for img_path in found_images:
+                    img_name = os.path.basename(img_path)
+                    st.markdown(f"#### 📄 {img_name}")
+                    display_image_safely(img_path, caption=f"Schéma technique : {img_name}")
+        st.divider()
+    else:
+        st.warning("ℹ️ Aucune image de schéma n'a encore été trouvée dans le dépôt pour ce vélo. Si vous avez ajouté l'image (ex: `Ampd_Torque.jpg` ou dans un dossier `images/`), assurez-vous qu'elle est bien présente sur GitHub.")
+        st.divider()
 
-    st.divider()
-
-    st.markdown("### 📋 Tableau complet des couples de serrage (Nm)")
+    st.markdown("""
+    ### 📍 Guide de repérage visuel des vis & pivots :
+    * **Zone Triangle Avant & Amortisseur** : Ancrages haut/bas de l'amortisseur, fixations trunnion et batterie.
+    * **Zone Biellette (Rocker Link)** : Axes centraux, biellettes et Flip Chip.
+    * **Zone Moteur & Carter** : Vis de fixation du bloc moteur, sabot et écrous de plateau.
+    * **Zone Triangle Arrière & Axe** : Pivots de bases (Horst Link), pivots de haubans, axe de roue arrière et vis de patte SRAM UDH.
+    """)
     
     torques_df = pd.DataFrame(bike_info["torques"])
     
@@ -491,10 +554,10 @@ else:
     st.dataframe(
         filtered_df[["zone", "component", "torque", "notes"]],
         column_config={
-            "zone": "Zone / Section",
-            "component": "Composant / Axe (Réf# / Label)",
+            "zone": "Zone",
+            "component": "Composant / Axe (Réf#)",
             "torque": "Couple préconisé (Nm)",
-            "notes": "Consignes (Frein filet / Graisse)"
+            "notes": "Recommandations (Frein filet / Graisse)"
         },
         use_container_width=True,
         hide_index=True
@@ -503,7 +566,7 @@ else:
     st.markdown("""
     ---
     ### 💡 Rappels de montage & Sécurité :
-    * **Patte de dérailleur SRAM UDH** : Attention, la vis de blocage UDH possède un **filetage inversé** (serrage dans le sens anti-horaire) à **20-25 Nm**.
+    * **Patte de dérailleur SRAM UDH** : Attention, la vis de blocage UDH possède un **filetage inversé** (serrage dans le sens anti-horaire) à **20–25 Nm**.
     * **Frein filet** : Utilisez du frein filet moyen (ex: Loctite 242/243) sur les filetages indiqués.
     * **Graissage des axes** : Appliquez une fine couche de graisse uniquement sur le corps/fût de l'axe, jamais sur les filetages destinés au frein filet.
     * **Étriers de frein Post Mount** : Serrage préconisé à **9.5 Nm**. Centrer l'étrier en maintenant le levier enfoncé.
