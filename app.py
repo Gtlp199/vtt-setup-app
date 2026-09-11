@@ -55,7 +55,7 @@ def load_data_from_gsheets():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl=0)
         return conn, df
-    except Exception as e:
+    except Exception:
         return None, None
 
 def save_data_to_gsheets(conn, existing_df, new_entry):
@@ -67,7 +67,7 @@ def save_data_to_gsheets(conn, existing_df, new_entry):
             updated_df = new_df
         conn.update(data=updated_df)
         return updated_df, True
-    except Exception as e:
+    except Exception:
         return existing_df, False
 
 def delete_row_from_gsheets(conn, existing_df, index_to_delete):
@@ -75,8 +75,19 @@ def delete_row_from_gsheets(conn, existing_df, index_to_delete):
         updated_df = existing_df.drop(index=index_to_delete).reset_index(drop=True)
         conn.update(data=updated_df)
         return updated_df, True
-    except Exception as e:
+    except Exception:
         return existing_df, False
+
+# Helper pour afficher des images sans plantage de version Streamlit
+def display_image_safely(img_path, caption_text):
+    if os.path.exists(img_path):
+        try:
+            st.image(img_path, caption=caption_text, use_container_width=True)
+        except Exception:
+            try:
+                st.image(img_path, caption=caption_text)
+            except Exception as e:
+                st.error(f"Impossible d'afficher l'image {img_path}: {e}")
 
 # ---------------------------------------------------------
 # DONNÉES GROUNDÉES DE LA BASE DE DONNÉES DES VÉLOS
@@ -87,7 +98,10 @@ BIKES_DATA = {
         "name": "Pivot Shuttle AMP'd (2026)",
         "type": "E-VTTAE All-Mountain / Enduro",
         "weight_ref": "85 kg",
-        "images": ["Suspension Calculator Pivot AMPD.jpg", "pivot_ampd_schematic.jpg"],
+        "images": [
+            "Suspension Calculator Pivot AMPD.jpg",
+            "images/Suspension Calculator Pivot AMPD.jpg"
+        ],
         "suspensions_recommended": {
             "fork": {
                 "model": "RockShox ZEB Ultimate 3.2 (160mm)",
@@ -125,7 +139,10 @@ BIKES_DATA = {
         "name": "Transition Patrol Carbone (2024/2025)",
         "type": "Enduro Musculaire (Mullet)",
         "weight_ref": "85 kg",
-        "images": ["2023.02.21_PatrolASM_Explode.jpg", "patrol_explode.jpg"],
+        "images": [
+            "2023.02.21_PatrolASM_Explode.jpg",
+            "images/2023.02.21_PatrolASM_Explode.jpg"
+        ],
         "suspensions_recommended": {
             "fork": {
                 "model": "Öhlins RXF 38 m.2 Kit Coil (160mm)",
@@ -169,7 +186,11 @@ BIKES_DATA = {
             "01_Carbon_Linkage_Hardware.jpg",
             "02_Carbon_Rear_Triangle_Hardware.jpg",
             "03_Carbon_Controller_Motor_Guards.png",
-            "04_Carbon_Battery.png"
+            "04_Carbon_Battery.png",
+            "images/01_Carbon_Linkage_Hardware.jpg",
+            "images/02_Carbon_Rear_Triangle_Hardware.jpg",
+            "images/03_Carbon_Controller_Motor_Guards.png",
+            "images/04_Carbon_Battery.png"
         ],
         "suspensions_recommended": {
             "fork": {
@@ -205,7 +226,7 @@ BIKES_DATA = {
         "name": "Norco Sight Carbon Gen 5 (2024)",
         "type": "All-Mountain / Enduro",
         "weight_ref": "Standard",
-        "images": ["norco_exploded_view.jpg"],
+        "images": [],
         "suspensions_recommended": {
             "fork": {
                 "model": "Öhlins RXF 38 m.2 Air (170mm)",
@@ -377,12 +398,11 @@ elif nav_option == "📚 Historique des Réglages":
         df_history = pd.DataFrame(st.session_state.settings_history)
         
         # Filtre par vélo
-        all_bikes = ["Tous les vélos"] + list(df_history["Vélo"].unique())
-        # Pré-sélectionner le vélo actif si présent
+        all_bikes = ["Tous les vélos"] + list(df_history["Vélo"].unique()) if "Vélo" in df_history.columns else ["Tous les vélos"]
         default_idx = all_bikes.index(bike_info["name"]) if bike_info["name"] in all_bikes else 0
         selected_filter_bike = st.selectbox("Filtrer l'historique par vélo :", all_bikes, index=default_idx)
         
-        if selected_filter_bike != "Tous les vélos":
+        if selected_filter_bike != "Tous les vélos" and "Vélo" in df_history.columns:
             filtered_history = df_history[df_history["Vélo"] == selected_filter_bike]
         else:
             filtered_history = df_history
@@ -404,24 +424,30 @@ elif nav_option == "📚 Historique des Réglages":
         st.markdown("### 🗑️ Supprimer un réglage de l'historique")
         delete_options = []
         for idx, row in filtered_history.iterrows():
-            delete_options.append(f"Ligne {idx+1} | {row['Date']} - {row['Vélo']} ({row['Terrain']} / {row['Météo']}) - {str(row['Commentaires'])[:30]}...")
+            velo_name = row.get("Vélo", "VTT")
+            date_val = row.get("Date", "")
+            terrain_val = row.get("Terrain", "")
+            weather_val = row.get("Météo", "")
+            comm_val = str(row.get("Commentaires", ""))[:30]
+            delete_options.append(f"Ligne {idx+1} | {date_val} - {velo_name} ({terrain_val} / {weather_val}) - {comm_val}...")
             
         if delete_options:
             selected_to_delete = st.selectbox("Choisissez la ligne à supprimer :", delete_options)
             if st.button("❌ Supprimer définitivement ce réglage"):
                 selected_idx = int(selected_to_delete.split("|")[0].replace("Ligne", "").strip()) - 1
                 
-                del st.session_state.settings_history[selected_idx]
-                
-                if gsheets_conn is not None:
-                    updated_df, success = delete_row_from_gsheets(gsheets_conn, df_history, selected_idx)
-                    if success:
-                        st.success("✅ La ligne a été supprimée de Google Sheets !")
+                if 0 <= selected_idx < len(st.session_state.settings_history):
+                    del st.session_state.settings_history[selected_idx]
+                    
+                    if gsheets_conn is not None:
+                        updated_df, success = delete_row_from_gsheets(gsheets_conn, df_history, selected_idx)
+                        if success:
+                            st.success("✅ La ligne a été supprimée de Google Sheets !")
+                        else:
+                            st.warning("⚠️ Suppression locale effectuée (Échec Google Sheets).")
                     else:
-                        st.warning("⚠️ Suppression locale effectuée (Échec Google Sheets).")
-                else:
-                    st.success("✅ La ligne a été supprimée de la mémoire locale.")
-                st.rerun()
+                        st.success("✅ La ligne a été supprimée de la mémoire locale.")
+                    st.rerun()
 
 # ---------------------------------------------------------
 # RUBRIQUE 3 : COUPLES DE SERRAGE & SCHÉMAS
@@ -431,46 +457,26 @@ else:
     
     st.info(f"ℹ️ **Documentation Schémas** : {bike_info['schematic_info']}")
     
-    # -----------------------------------------------------
-    # AFFICHAGE DES IMAGES / SCHÉMAS (st.image)
-    # -----------------------------------------------------
+    # CHARGEMENT ET AFFICHAGE DES SCHÉMAS / IMAGES
     st.markdown("### 🖼️ Schémas & Vues Éclatées du Cadre")
+    found_images = []
+    if "images" in bike_info:
+        for img_path in bike_info["images"]:
+            if os.path.exists(img_path):
+                found_images.append(img_path)
     
-    bike_images = bike_info.get("images", [])
-    found_any_image = False
+    if found_images:
+        for img_p in found_images:
+            img_name = os.path.basename(img_p)
+            display_image_safely(img_p, f"Schéma technique : {img_name}")
+    else:
+        st.info("💡 Les fichiers image JPG/PNG de ce vélo n'ont pas encore été détectés dans le dossier du dépôt. Vous pouvez glisser vos fichiers image dans GitHub (ex: dossier `images/`).")
     
-    for img_name in bike_images:
-        # Vérifier la présence du fichier dans le répertoire racine ou dans images/
-        possible_paths = [img_name, f"images/{img_name}", f"img/{img_name}"]
-        img_path = None
-        for p in possible_paths:
-            if os.path.exists(p):
-                img_path = p
-                break
-                
-        if img_path:
-            st.image(img_path, caption=f"Schéma technique : {img_name}", use_column_width=True)
-            found_any_image = True
-            
-    if not found_any_image:
-        st.warning("🖼️ **Aucun fichier image (.jpg / .png) trouvé localement sur le serveur.**")
-        st.markdown("""
-        **Comment afficher vos schémas images dans l'application :**
-        1. Téléchargez les fichiers images (`.jpg` ou `.png`) de vos vélos sur votre ordinateur.
-        2. Glissez-déposez ces fichiers dans votre dépôt GitHub (`vtt-setup-app`) à la racine ou dans un dossier `images/`.
-        3. Dès que les fichiers sont sur GitHub, l'application les affichera automatiquement ci-dessous !
-        """)
-        
-        # Module de test d'upload direct
-        uploaded_file = st.file_uploader(f"Ou téléversez temporairement le schéma pour {bike_info['name']} :", type=["jpg", "png", "jpeg"])
-        if uploaded_file is not None:
-            st.image(uploaded_file, caption=f"Aperçu : {uploaded_file.name}", use_column_width=True)
-
     st.divider()
 
-    # Guide de repérage visuel textuel
+    # CARTE D'IMPLANTATION TEXTUELLE PAR ZONE
     st.markdown("""
-    ### 📍 Guide de repérage des vis & pivots :
+    ### 📍 Guide de repérage visuel des vis & pivots :
     * **Zone Triangle Avant & Amortisseur** : Ancrages haut/bas de l'amortisseur, fixations trunnion et batterie.
     * **Zone Biellette (Rocker Link)** : Axes centraux, biellettes et Flip Chip.
     * **Zone Moteur & Carter** : Vis de fixation du bloc moteur, sabot et écrous de plateau.
