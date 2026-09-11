@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import json
-import os
 from datetime import datetime
 
 # Configuration de la page Streamlit
@@ -35,12 +34,12 @@ st.markdown("""
         border-left: 4px solid #2563EB;
         margin-bottom: 1rem;
     }
-    .torque-header {
-        background-color: #3B82F6;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 0.25rem;
-        font-weight: bold;
+    .schematic-box {
+        background-color: #EFF6FF;
+        border: 1px solid #BFDBFE;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -85,7 +84,15 @@ BIKES_DATA = {
             {"zone": "Composants", "component": "Vis Sabot Moteur M6x12 [Réf #23]", "torque": "6 Nm", "notes": "Loctite 243"},
             {"zone": "Composants", "component": "Vis Anti-dérailleur M5x12 [Réf #35]", "torque": "5 Nm", "notes": "Loctite 243"}
         ],
-        "schematic_info": "Vue éclatée disponible dans le manuel d'atelier '8.26-Shuttle-AMPD-Product-Manual-All-Languages.pdf' (Section Small Parts & Avinox System)."
+        "schematic_guide": {
+            "source_doc": "Manuel Pivot Shuttle AMP'd - Section 5 (Small Parts & Avinox System)",
+            "repere_map": [
+                {"zone": "Triangle Avant & Amortisseur", "details": "Vis avant d'amortisseur (#12 - 13 Nm), Ancrage Trunnion (#14 - 13 Nm), Fixation Batterie (#I - 5 Nm)"},
+                {"zone": "Biellette & Cinématique", "details": "Axe de biellette principale (#13 - 35 Nm), Flip Chip (#15 - 35 Nm)"},
+                {"zone": "Moteur Avinox & Pédalier", "details": "Vis de bloc moteur (#J - 25 Nm), Ecrou Spider Plateau (#K - 35 Nm), Sabot Moteur (#23 - 6 Nm)"},
+                {"zone": "Triangle Arrière & Roue", "details": "Vis de patte UDH (#5 - 25 Nm), Axe traversant 157mm (#157mm - 15 Nm)"}
+            ]
+        }
     },
     "transition_patrol_2024": {
         "name": "Transition Patrol Carbone (2024/2025)",
@@ -124,7 +131,15 @@ BIKES_DATA = {
             {"zone": "Freins", "component": "Disques SRAM HS2 (Moyeux Hope Pro 5)", "torque": "6.2 Nm", "notes": "Torx T25 / Serrage en étoile"},
             {"zone": "Freins", "component": "Étriers SRAM Maven (Fixation Post Mount)", "torque": "9.5 Nm", "notes": "Centrer l'étrier levier serré"}
         ],
-        "schematic_info": "Vue éclatée disponible dans le schéma officiel '2023.02.21_PatrolASM_Explode.jpg' et 'Transition Patrol Couples de serrage - Feuille 2'."
+        "schematic_guide": {
+            "source_doc": "Vue éclatée Transition Patrol ASM Explode (2023.02.21_PatrolASM_Explode.jpg & Feuille 2)",
+            "repere_map": [
+                {"zone": "Boîtier & Pivot Principal", "details": "Axe principal (#5/#7 - 19 Nm), Pivot de bases Horst Link (#16 - 19 Nm)"},
+                {"zone": "Biellette Rocker Link", "details": "Axe central de biellette (#27/#29 - 19 Nm), Ancrage haut amortisseur (#19/#22 - 10-12 Nm)"},
+                {"zone": "Haubans & Amortisseur", "details": "Pivots de haubans (#25 - 19 Nm), Ancrage bas amortisseur (#11 - 10-12 Nm)"},
+                {"zone": "Axe Arrière & UDH", "details": "Axe traversant arrière (#33 - 10-12 Nm), Vis de patte UDH (#35 - 25 Nm pas inversé)"}
+            ]
+        }
     },
     "santacruz_vala_2026": {
         "name": "Santa Cruz Vala GX AXS (2026)",
@@ -158,28 +173,35 @@ BIKES_DATA = {
             {"zone": "Composants", "component": "Vis de Disque 6 Trous", "torque": "6 Nm", "notes": "Torx T25"},
             {"zone": "Composants", "component": "Étriers de Frein Post Mount", "torque": "9 - 10 Nm", "notes": "Alignement étrier"}
         ],
-        "schematic_info": "Vues éclatées et fiches matériels disponibles dans 'Santa Cruz Vala 2026 - Couples de Serrage et Vues Eclatees'."
+        "schematic_guide": {
+            "source_doc": "Fiches Vues Éclatées Santa Cruz Vala 2026 (Carbon Linkage & Rear Triangle Hardware)",
+            "repere_map": [
+                {"zone": "Linkage & Triangle Avant", "details": "Pivot Axle M15x91 (Label C - 20 Nm), Ancrage Trunnion (Label T - 16 Nm), Ancrage Bas (Label H - 15.6 Nm)"},
+                {"zone": "Moteur Bosch Gen 5", "details": "Vis de fixation moteur BDU38 (Label N & O - 30 Nm), Protection carter (Label B - 9 Nm / Label G - 3 Nm)"},
+                {"zone": "Triangle Arrière & Bases", "details": "Pivot Horst Link (Label F - 9 Nm), Axe de triangle arrière M10x26 (Label D - 16 Nm)"},
+                {"zone": "Patte UDH & Axe", "details": "Vis de patte UDH (Label C - 20 Nm pas à gauche), Axe arrière 12x173.7 (Label A)"}
+            ]
+        }
     },
     "norco_sight_2024": {
         "name": "Norco Sight Carbon Gen 5 (2024)",
         "type": "All-Mountain / Enduro",
-        "weight_ref": "85 kg",
+        "weight_ref": "Standard",
         "suspensions_recommended": {
             "fork": {
-                "model": "Öhlins RXF 38 m.2 Air (170mm)",
-                "pressure": "Main: 100-110 psi | Ramp Up: 190-200 psi",
-                "sag": "10% - 15% (17 - 25.5 mm)",
-                "lsr": "10 - 11 clics depuis ouvert",
-                "lsc": "Molette bleue (maintien en virage)",
+                "model": "Öhlins RXF 38 m.2 (170mm)",
+                "pressure": "Selon abaque Öhlins / SAG 15-20%",
+                "sag": "25.5 - 34 mm",
+                "lsr": "Ajustement Öhlins TTX18",
+                "lsc": "Ajustement Öhlins TTX18",
                 "hsc": "3 positions descente + 1 blocage"
             },
             "shock": {
                 "model": "Öhlins TTX Air 2 (205x60mm)",
-                "pressure": "170 - 190 psi (pour ~85kg)",
-                "sag": "25% - 35% (18 mm cible)",
-                "lsr": "Compter clics depuis fermeture complète",
-                "lsc": "Molette bleue",
-                "hsc": "Positions I (Souple), II (Polyvalent), P (Pédalage)"
+                "pressure": "Selon abaque Öhlins / SAG 30%",
+                "sag": "18 mm enfoncement",
+                "lsr": "Ajustement Öhlins TTX",
+                "lsc": "Ajustement Öhlins TTX"
             }
         },
         "torques": [
@@ -190,84 +212,21 @@ BIKES_DATA = {
             {"zone": "Transmission & Moteur", "component": "UDH Derailleur Hanger Bolt", "torque": "20 Nm", "notes": "Pas à gauche (Left hand thread)"},
             {"zone": "Cadre & Cinématique", "component": "Axe de roue arrière 12x148mm", "torque": "10 Nm", "notes": "Graisser le filetage"}
         ],
-        "schematic_info": "Schémas de câblage et vues éclatées disponibles dans 'norco-sight-carbon-gen5-(nb-095)-assembler-document'."
+        "schematic_guide": {
+            "source_doc": "Manuel d'assemblage Norco Sight Carbon Gen 5 (Sheets 1 to 6)",
+            "repere_map": [
+                {"zone": "Pivot Principal & Cadre", "details": "Main Pivot Shaft (Item 15/21 - 21 Nm), Retainer (Item 25 - 3 Nm)"},
+                {"zone": "Biellette & Ancrages", "details": "Linkarm to Front Triangle / Trunnion (Item 19 - 16 Nm), Shock Mounts (20 Nm)"},
+                {"zone": "Triangle Arrière & Galet Idler", "details": "Chain Stay to Seat Stays (Item 17 - 14 Nm), Linkarm to Seat Stays (Item 18 - 14 Nm), Idler Assembly (Item 26 - 16 Nm)"},
+                {"zone": "Axe Arrière & UDH", "details": "Axe arrière L174 (Item 40 - 10 Nm), UDH Hanger Bolt (Item 39 - 20 Nm pas à gauche)"}
+            ]
+        }
     }
 }
 
-CSV_FILE = "vtt_setups_history.csv"
-COLUMNS = ["Date", "Vélo", "Poids_Pilote_kg", "Terrain", "Météo", "Fourche_Réglage", "Amortisseur_Réglage", "Commentaires"]
-
-# ---------------------------------------------------------
-# FONCTIONS DE GESTION DU STOCKAGE (GOOGLE SHEETS / CSV / SESSION STATE)
-# ---------------------------------------------------------
-
-def get_gsheets_connection():
-    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-        try:
-            from streamlit_gsheets import GSheetsConnection
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            return conn
-        except Exception:
-            pass
-    return None
-
-def load_history():
-    conn = get_gsheets_connection()
-    if conn is not None:
-        try:
-            df = conn.read(ttl="0")
-            if df is not None and not df.empty:
-                df = df.dropna(how="all")
-                # Vérifier et aligner les colonnes
-                for col in COLUMNS:
-                    if col not in df.columns:
-                        df[col] = ""
-                return df[COLUMNS], conn
-        except Exception as e:
-            st.caption(f"ℹ️ Connexion Google Sheets en attente ou vide : {e}")
-
-    # Fallback vers fichier CSV local
-    if os.path.exists(CSV_FILE):
-        try:
-            df = pd.read_csv(CSV_FILE)
-            df = df.dropna(how="all")
-            for col in COLUMNS:
-                if col not in df.columns:
-                    df[col] = ""
-            return df[COLUMNS], None
-        except Exception:
-            pass
-
-    # Fallback vers session_state
-    if "settings_history" in st.session_state and st.session_state.settings_history:
-        df = pd.DataFrame(st.session_state.settings_history)
-        for col in COLUMNS:
-            if col not in df.columns:
-                df[col] = ""
-        return df[COLUMNS], None
-
-    # Par défaut, tableau vide
-    return pd.DataFrame(columns=COLUMNS), None
-
-def save_history(df, conn=None):
-    df = df.dropna(how="all")
-    # Mettre à jour la session state
-    st.session_state.settings_history = df.to_dict("records")
-    
-    # Sauvegarder en CSV local
-    df.to_csv(CSV_FILE, index=False)
-    
-    # Sauvegarder dans Google Sheets si disponible
-    if conn is None:
-        conn = get_gsheets_connection()
-    if conn is not None:
-        try:
-            conn.update(data=df)
-            return True
-        except Exception as e:
-            st.error(f"Erreur lors de la synchronisation Google Sheets : {e}")
-            return False
-    return True
+# Initialisation du State pour l'historique des Réglages Utilisateur
+if "settings_history" not in st.session_state:
+    st.session_state.settings_history = []
 
 # ---------------------------------------------------------
 # INTERFACE PRINCIPALE
@@ -293,20 +252,17 @@ user_weight = st.sidebar.number_input("Poids du pilote équipé (kg) :", min_val
 # Choix de la rubrique
 nav_option = st.radio(
     "Sélectionnez la rubrique :",
-    ["🔧 Réglages Suspensions", "📚 Historique des Réglages", "🔩 Couples de Serrage & Schémas"],
+    ["🔧 Réglages Suspensions", "🔩 Couples de Serrage & Schémas", "📚 Historique des Réglages"],
     horizontal=True
 )
 
 st.divider()
 
-# Charger l'historique
-df_history, gconn = load_history()
-
 # ---------------------------------------------------------
-# RUBRIQUE 1 : RÉGLAGES SUSPENSIONS & FORMULAIRE
+# RUBRIQUE 1 : RÉGLAGES SUSPENSIONS
 # ---------------------------------------------------------
 if nav_option == "🔧 Réglages Suspensions":
-    st.subheader(f"📊 Réglages de suspension préconisés - {bike_info['name']} ({user_weight} kg)")
+    st.subheader(f"📊 Réglages de suspension pour {bike_info['name']} ({user_weight} kg)")
     
     recom = bike_info["suspensions_recommended"]
     
@@ -343,8 +299,8 @@ if nav_option == "🔧 Réglages Suspensions":
     st.divider()
     
     # FORMULAIRE DE SAISIE DE NOUVEAUX RÉGLAGES
-    st.subheader(f"📝 Saisir et ajouter un nouveau réglage terrain ({bike_info['name']})")
-    st.write("Enregistrez vos ajustements personnalisés : la nouvelle donnée sera **ajoutée à la suite de votre historique** sans rien écraser.")
+    st.subheader("📝 Saisie de vos réglages personnalisés du jour")
+    st.write("Enregistrez vos ajustements personnalisés selon les conditions de votre sortie.")
     
     with st.form("custom_settings_form"):
         f_col1, f_col2, f_col3 = st.columns(3)
@@ -357,97 +313,64 @@ if nav_option == "🔧 Réglages Suspensions":
         with f_col2:
             st.markdown("**Ajustements Fourche**")
             fork_press_user = st.text_input("Pression / Ressort fourche", value=fork.get('pressure', 'Coil'))
-            fork_lsr_user = st.text_input("Rebond fourche (clics)", value=fork.get('lsr', '7 clics'))
+            fork_lsr_user = st.text_input("Rebond fourche (clics)", value="7 clics")
             fork_comp_user = st.text_input("Compression LSC/HSC fourche", value="Milieu")
             
         with f_col3:
             st.markdown("**Ajustements Amortisseur**")
             shock_press_user = st.text_input("Pression / Ressort amortisseur", value=shock.get('pressure', 'Coil'))
-            shock_lsr_user = st.text_input("Rebond amortisseur (clics)", value=shock.get('lsr', '8 clics'))
+            shock_lsr_user = st.text_input("Rebond amortisseur (clics)", value="8 clics")
             shock_comp_user = st.text_input("Compression LSC/HSC amortisseur", value="Milieu")
 
         comments = st.text_area("Remarques / Sensation de pilotage :", placeholder="Ex: -5 psi en fourche pour gagner du grip sur le mouillé. Vélo très stable dans le rapide.")
         
-        submit_button = st.form_submit_button("➕ Ajouter ce réglage à l'historique")
+        submit_button = st.form_submit_button("💾 Enregistrer ces réglages")
         
         if submit_button:
-            new_entry = {
-                "Date": str(date_ride),
-                "Vélo": bike_info["name"],
-                "Poids_Pilote_kg": user_weight,
-                "Terrain": terrain_type,
-                "Météo": weather_cond,
-                "Fourche_Réglage": f"{fork_press_user} | Rebond: {fork_lsr_user} | Comp: {fork_comp_user}",
-                "Amortisseur_Réglage": f"{shock_press_user} | Rebond: {shock_lsr_user} | Comp: {shock_comp_user}",
-                "Commentaires": comments
+            entry = {
+                "date": str(date_ride),
+                "bike": bike_info["name"],
+                "rider_weight_kg": user_weight,
+                "terrain": terrain_type,
+                "weather": weather_cond,
+                "fork_setup": f"{fork_press_user} | Rebond: {fork_lsr_user} | Comp: {fork_comp_user}",
+                "shock_setup": f"{shock_press_user} | Rebond: {shock_lsr_user} | Comp: {shock_comp_user}",
+                "comments": comments
             }
-            new_df = pd.DataFrame([new_entry])
-            updated_df = pd.concat([df_history, new_df], ignore_index=True)
-            if save_history(updated_df, gconn):
-                st.success(f"✅ Nouveau réglage ajouté avec succès pour le **{bike_info['name']}** !")
-                st.rerun()
+            
+            # Essai de sauvegarde Google Sheets si configuré
+            saved_to_gsheets = False
+            try:
+                from streamlit_gsheets import GSheetsConnection
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                existing_data = conn.read()
+                new_df = pd.concat([existing_data, pd.DataFrame([entry])], ignore_index=True)
+                conn.update(data=new_df)
+                saved_to_gsheets = True
+                st.success("✅ Vos réglages ont été synchronisés avec succès sur votre Google Sheet !")
+            except Exception:
+                pass
+                
+            if not saved_to_gsheets:
+                st.session_state.settings_history.append(entry)
+                st.success("✅ Vos réglages ont été enregistrés localement dans la session !")
 
 # ---------------------------------------------------------
-# RUBRIQUE 2 : HISTORIQUE DES RÉGLAGES ET SUPPRESSION
+# RUBRIQUE 2 : COUPLES DE SERRAGE & SCHÉMAS
 # ---------------------------------------------------------
-elif nav_option == "📚 Historique des Réglages":
-    st.subheader("📚 Historique complet de vos réglages terrain")
-    
-    if df_history.empty:
-        st.info("Aucun réglage enregistré pour l'instant. Rendez-vous dans l'onglet '🔧 Réglages Suspensions' pour ajouter votre premier réglage !")
-    else:
-        # Filtre par Vélo
-        all_bikes = ["Tous les vélos"] + list(BIKES_DATA[k]["name"] for k in BIKES_DATA)
-        # Trouver l'index par défaut pour le vélo actuellement sélectionné
-        default_index = 0
-        if bike_info["name"] in all_bikes:
-            default_index = all_bikes.index(bike_info["name"])
-
-        selected_filter_bike = st.selectbox("🔍 Filtrer l'historique par vélo :", all_bikes, index=default_index)
-
-        if selected_filter_bike != "Tous les vélos":
-            view_df = df_history[df_history["Vélo"] == selected_filter_bike]
-        else:
-            view_df = df_history
-
-        st.dataframe(view_df, use_container_width=True, hide_index=True)
-
-        # Bouton d'export CSV
-        csv_data = view_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Télécharger cet historique (.csv)",
-            data=csv_data,
-            file_name=f"vtt_setups_history_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
-        )
-
-        st.divider()
-
-        # SUPPRESSION D'UN RÉGLAGE
-        st.subheader("🗑️ Supprimer un réglage de l'historique")
-        st.write("Sélectionnez la ligne de réglage à supprimer de votre base de données :")
-
-        options_to_delete = {}
-        for idx, row in df_history.iterrows():
-            label = f"Ligne #{idx+1} | {row['Date']} | {row['Vélo']} | {row['Terrain']} | {str(row['Commentaires'])[:30]}"
-            options_to_delete[label] = idx
-
-        selected_label = st.selectbox("Réglage à supprimer :", list(options_to_delete.keys()))
-
-        if st.button("❌ Supprimer définitivement ce réglage"):
-            idx_to_remove = options_to_delete[selected_label]
-            updated_df = df_history.drop(index=idx_to_remove).reset_index(drop=True)
-            if save_history(updated_df, gconn):
-                st.success("✅ Le réglage a été supprimé avec succès de votre historique !")
-                st.rerun()
-
-# ---------------------------------------------------------
-# RUBRIQUE 3 : COUPLES DE SERRAGE & SCHÉMAS
-# ---------------------------------------------------------
-else:
+elif nav_option == "🔩 Couples de Serrage & Schémas":
     st.subheader(f"🔩 Fiche technique & Couples de serrage - {bike_info['name']}")
     
-    st.info(f"ℹ️ **Documentation Schémas** : {bike_info['schematic_info']}")
+    # Guide Visuel de repérage sur les schémas
+    st.markdown('<div class="schematic-box">', unsafe_allow_html=True)
+    st.markdown("### 🗺️ Guide de repérage et carte d'implantation sur les schémas")
+    schem = bike_info.get("schematic_guide", {})
+    st.write(f"**Document source associé** : `{schem.get('source_doc', 'Manuel constructeur')}`")
+    
+    st.write("Retrouvez la position exacte de chaque vis et axe grâce aux repères / numéros des vues éclatées :")
+    for rmap in schem.get("repere_map", []):
+        st.markdown(f"* **{rmap['zone']}** : {rmap['details']}")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     torques_df = pd.DataFrame(bike_info["torques"])
     
@@ -463,8 +386,8 @@ else:
     st.dataframe(
         filtered_df[["zone", "component", "torque", "notes"]],
         column_config={
-            "zone": "Zone",
-            "component": "Composant / Axe (Réf#)",
+            "zone": "Zone du cadre",
+            "component": "Composant / Axe (Repère / Réf#)",
             "torque": "Couple préconisé (Nm)",
             "notes": "Recommandations (Frein filet / Graisse)"
         },
@@ -475,12 +398,77 @@ else:
     st.markdown("""
     ---
     ### 💡 Rappels de montage & Sécurité :
-    * **Patte de dérailleur SRAM UDH** : Attention, la vis de blocage UDH possède un **filetage inversé** (serrage dans le sens anti-horaire) à **25 Nm**.
+    * **Patte de dérailleur SRAM UDH** : Attention, la vis de blocage UDH possède un **filetage inversé** (serrage dans le sens anti-horaire) à **25 Nm** (ou 20 Nm selon le fabricant de cadre).
     * **Frein filet** : Utilisez du frein filet moyen (ex: Loctite 242/243) sur les filetages indiqués.
     * **Graissage des axes** : Appliquez une fine couche de graisse uniquement sur le corps/fût de l'axe, jamais sur les filetages destinés au frein filet.
     * **Étriers de frein Post Mount** : Serrage préconisé à **9.5 Nm**. Centrer l'étrier en maintenant le levier enfoncé.
     * **Disques 6 trous (SRAM HS2 / Hope)** : Serrage à **6.2 Nm** en étoile croisée avec clé Torx T25.
     """)
+
+# ---------------------------------------------------------
+# RUBRIQUE 3 : HISTORIQUE & SUPPRESSION DE RÉGLAGES
+# ---------------------------------------------------------
+else:
+    st.subheader("📚 Historique complet de vos réglages")
+    
+    history_data = []
+    # Vérification Google Sheets d'abord
+    try:
+        from streamlit_gsheets import GSheetsConnection
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_gsheets = conn.read()
+        if not df_gsheets.empty:
+            history_data = df_gsheets.to_dict('records')
+    except Exception:
+        history_data = st.session_state.settings_history
+
+    if history_data:
+        df_all = pd.DataFrame(history_data)
+        
+        # Filtre par vélo
+        bike_options = ["Tous les vélos"] + list(df_all["bike"].unique()) if "bike" in df_all.columns else ["Tous les vélos"]
+        selected_hist_bike = st.selectbox("Afficher l'historique pour :", bike_options, index=0)
+        
+        if selected_hist_bike != "Tous les vélos" and "bike" in df_all.columns:
+            df_filtered = df_all[df_all["bike"] == selected_hist_bike]
+        else:
+            df_filtered = df_all
+            
+        st.dataframe(df_filtered, use_container_width=True)
+        
+        # Bouton d'export CSV pour garder une copie sur mobile
+        csv_buffer = df_filtered.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Télécharger cet historique (.csv)",
+            data=csv_buffer,
+            file_name=f"vtt_setups_{datetime.today().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+        
+        st.divider()
+        # Suppression d'un réglage
+        st.subheader("🗑️ Supprimer un réglage de l'historique")
+        
+        delete_options = [f"Ligne {i+1}: {row.get('date', '')} - {row.get('bike', '')} ({row.get('terrain', '')}) | {row.get('comments', '')[:30]}..." for i, row in enumerate(history_data)]
+        selected_to_delete = st.selectbox("Choisissez le réglage à supprimer :", ["Aucun"] + delete_options)
+        
+        if selected_to_delete != "Aucun":
+            idx = delete_options.index(selected_to_delete)
+            if st.button("❌ Supprimer définitivement ce réglage"):
+                del history_data[idx]
+                
+                # Mise à jour Google Sheets
+                try:
+                    from streamlit_gsheets import GSheetsConnection
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    conn.update(data=pd.DataFrame(history_data))
+                    st.success("✅ Réglage supprimé de votre Google Sheet !")
+                except Exception:
+                    st.session_state.settings_history = history_data
+                    st.success("✅ Réglage supprimé de la session !")
+                st.rerun()
+    else:
+        st.info("Aucun réglage n'a encore été enregistré. Utilisez l'onglet '🔧 Réglages Suspensions' pour enregistrer votre première sortie !")
 
 # Footer
 st.divider()
